@@ -38,7 +38,7 @@ header .add{background:#4f7cff;border:none;color:#fff;padding:8px 14px;border-ra
 <div class="login" id="login">
   <h2>📋 Tableau Nicola</h2>
   <input type="password" id="pw" placeholder="Mot de passe" autofocus>
-  <button onclick="doLogin()">Entrer</button>
+  <button type="button" id="btnLogin" onclick="doLogin()">Entrer</button>
   <p id="lerr" style="color:#ff7a7a;font-size:13px"></p>
 </div>
 <div id="app" style="display:none">
@@ -64,8 +64,17 @@ async function api(p,opt){const r=await fetch('/api/'+p,opt);if(r.status===401){
 function showLogin(){document.getElementById('app').style.display='none';document.getElementById('login').style.display='flex'}
 function showApp(){document.getElementById('login').style.display='none';document.getElementById('app').style.display='block'}
 async function doLogin(){
-  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})});
-  if(r.ok){showApp();load()}else{document.getElementById('lerr').textContent='Mot de passe incorrect'}
+  const btn=document.getElementById('btnLogin');
+  const err=document.getElementById('lerr');
+  err.textContent='';
+  btn.disabled=true; btn.textContent='Connexion...';
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})});
+    if(r.ok){showApp();load()}
+    else if(r.status===401){err.textContent='Mot de passe incorrect'}
+    else{err.textContent='Erreur serveur ('+r.status+') — réessaie'}
+  }catch(e){err.textContent='Erreur réseau — vérifie ta connexion'}
+  btn.disabled=false; btn.textContent='Entrer';
 }
 document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 async function load(){
