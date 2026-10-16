@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tableau Nicola</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;background:#0f1420;color:#e8ecf4;min-height:100vh}
+.login{display:flex;justify-content:center;align-items:center;min-height:100vh;flex-direction:column;gap:12px}
+.login input{padding:14px;border-radius:10px;border:1px solid #2a3450;background:#1a2138;color:#fff;font-size:16px;width:280px}
+.login button{padding:14px 24px;border-radius:10px;border:none;background:#4f7cff;color:#fff;font-size:16px;font-weight:600;cursor:pointer}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#141b2e;border-bottom:1px solid #232d4a}
+header h1{font-size:18px}
+header .add{background:#4f7cff;border:none;color:#fff;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:600}
+.wrap{display:flex;gap:12px;padding:14px;overflow-x:auto;align-items:flex-start}
+.col{min-width:280px;flex:1;background:#141b2e;border-radius:12px;border:1px solid #232d4a;padding:10px}
+.col h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#8b96b8;margin:4px 6px 10px;display:flex;justify-content:space-between}
+.card{background:#1a2138;border-radius:10px;padding:10px;margin-bottom:8px;border-left:3px solid #4f7cff;cursor:default}
+.card.p1{border-left-color:#ff5f5f}.card.p3{border-left-color:#39c07d}
+.card .t{font-weight:600;font-size:14px}
+.card .d{color:#9aa5c5;font-size:12px;margin-top:4px}
+.card .row{display:flex;gap:6px;margin-top:8px}
+.card button{border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;background:#2a3450;color:#cfd8f0}
+.card button.del{background:#3a2030;color:#ff9a9a}
+.card .cb{width:18px;height:18px;accent-color:#39c07d}
+.done .t{text-decoration:line-through;color:#6b7590}
+.modal{position:fixed;inset:0;background:rgba(5,8,18,.7);display:none;justify-content:center;align-items:center}
+.modal.on{display:flex}
+.modal .box{background:#141b2e;padding:18px;border-radius:14px;display:flex;flex-direction:column;gap:10px;width:min(92vw,380px)}
+.modal input,.modal select,.modal textarea{padding:10px;border-radius:8px;border:1px solid #2a3450;background:#1a2138;color:#fff;font-size:14px}
+.grp-tabs{display:flex;gap:6px;padding:0 14px;overflow-x:auto}
+.grp-tabs button{border:none;background:#1a2138;color:#8b96b8;padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;white-space:nowrap}
+.grp-tabs button.on{background:#4f7cff;color:#fff}
+</style>
+</head>
+<body>
+<div class="login" id="login">
+  <h2>📋 Tableau Nicola</h2>
+  <input type="password" id="pw" placeholder="Mot de passe" autofocus>
+  <button onclick="doLogin()">Entrer</button>
+  <p id="lerr" style="color:#ff7a7a;font-size:13px"></p>
+</div>
+<div id="app" style="display:none">
+<header><h1>📋 Tableau Nicola</h1><button class="add" onclick="openAdd()">+ Nouvelle tâche</button></header>
+<div class="grp-tabs" id="tabs"></div>
+<div class="wrap" id="cols"></div>
+</div>
+<div class="modal" id="modal"><div class="box">
+  <h3 id="mtitle">Nouvelle tâche</h3>
+  <select id="mgroupe"></select>
+  <input id="mnom" placeholder="Titre de la tâche">
+  <textarea id="mdet" rows="2" placeholder="Détail (optionnel)"></textarea>
+  <select id="mprio"><option value="1">🔴 Haute</option><option value="2" selected>⚪ Normale</option><option value="3">🟢 Basse</option></select>
+  <input type="date" id="mdue">
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="closeM()" style="background:#2a3450;color:#cfd8f0;border:none;padding:8px 12px;border-radius:8px;cursor:pointer">Annuler</button>
+    <button onclick="saveM()" style="background:#4f7cff;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600">Ajouter</button>
+  </div>
+</div></div>
+<script>
+let GROUPS=[], CURGRP='ALL', editId=null;
+async function api(p,opt){const r=await fetch('/api/'+p,opt);if(r.status===401){showLogin();throw 'auth'}return r.json()}
+function showLogin(){document.getElementById('app').style.display='none';document.getElementById('login').style.display='flex'}
+function showApp(){document.getElementById('login').style.display='none';document.getElementById('app').style.display='block'}
+async function doLogin(){
+  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:document.getElementById('pw').value})});
+  if(r.ok){showApp();load()}else{document.getElementById('lerr').textContent='Mot de passe incorrect'}
+}
+document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+async function load(){
+  const [gs,its]=await Promise.all([api('groups'),api('items')]);
+  GROUPS=gs;
+  const tabs=document.getElementById('tabs');
+  tabs.innerHTML=`<button class="${CURGRP==='ALL'?'on':''}" onclick="setG('ALL')">🌐 Tout</button>`+
+    gs.map(g=>`<button class="${CURGRP===g.id?'on':''}" onclick="setG('${g.id}')">${g.label}</button>`).join('');
+  const cols=document.getElementById('cols');
+  const sts=[['todo','📋 À faire'],['doing','🔨 En cours'],['done','✅ Fait']];
+  cols.innerHTML=sts.map(([s,l])=>{
+    const cards=its.filter(i=>(CURGRP==='ALL'||i.groupe===CURGRP)&&i.status===s)
+      .map(i=>`<div class="card p${i.prio} ${s==='done'?'done':''}">
+        <div class="t">${esc(i.title)}</div>
+        ${i.due?`<div class="d">📅 ${i.due}</div>`:''}
+        ${i.detail?`<div class="d">${esc(i.detail)}</div>`:''}
+        <div class="row">
+          <button onclick="toggle(${i.id},'${s==='done'?'todo':'done'}')">${s==='done'?'↩︎ rouvrir':'✓ fait'}</button>
+          <button onclick="mvdo(${i.id})">${s==='doing'?'← à faire':'→ en cours'}</button>
+          <button class="del" onclick="del(${i.id})">✕</button>
+        </div></div>`).join('');
+    return `<div class="col"><h2>${l}<span>${cards.length}</span></h2>${cards}</div>`;
+  }).join('');
+}
+function esc(s){return (s||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}
+function setG(g){CURGRP=g;load()}
+function toggle(id,st){api('items/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:st})}).then(load)}
+function mvdo(id){api('items/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'doing'})}).then(load)}
+function del(id){if(confirm('Supprimer ?'))api('items/'+id,{method:'DELETE'}).then(load)}
+function openAdd(){editId=null;document.getElementById('mtitle').textContent='Nouvelle tâche';
+  document.getElementById('mgroupe').innerHTML=GROUPS.map(g=>`<option value="${g.id}">${g.label}</option>`).join('');
+  document.getElementById('mnom').value='';document.getElementById('mdet').value='';document.getElementById('mdue').value='';
+  document.getElementById('modal').classList.add('on')}
+function closeM(){document.getElementById('modal').classList.remove('on')}
+function saveM(){
+  const d={groupe:document.getElementById('mgroupe').value,title:document.getElementById('mnom').value,
+    detail:document.getElementById('mdet').value,prio:+document.getElementById('mprio').value,due:document.getElementById('mdue').value};
+  if(!d.title)return;
+  api('items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}).then(()=>{closeM();load()})
+}
+load().catch(()=>{});
+</script>
+</body>
+</html>
