@@ -49,7 +49,10 @@ header .add{background:#4f7cff;border:none;color:#fff;padding:8px 14px;border-ra
 <div class="modal" id="modal"><div class="box">
   <h3 id="mtitle">Nouvelle tâche</h3>
   <select id="mgroupe"></select>
-  <input id="msite" list="sites-list" placeholder="Site web (ex: angelsfinance.net) — optionnel">
+  <div id="siteWrap">
+    <select id="msite"><option value="">— pas de site web —</option></select>
+    <div style="display:flex;gap:6px"><input id="msiteNew" placeholder="…ou nouveau site (ex: brainlytools.com)" style="flex:1"><button type="button" onclick="addSite()" style="background:#2a3450;color:#cfd8f0;border:none;border-radius:8px;padding:0 10px;cursor:pointer">+</button></div>
+  </div>
   <datalist id="sites-list"></datalist>
   <input id="mnom" placeholder="Titre de la tâche">
   <textarea id="mdet" rows="2" placeholder="Détail (optionnel)"></textarea>
@@ -61,7 +64,8 @@ header .add{background:#4f7cff;border:none;color:#fff;padding:8px 14px;border-ra
   </div>
 </div></div>
 <script>
-let GROUPS=[], CURGRP='ALL', editId=null;
+let GROUPS=[], CURGRP='ALL', editId=null, SITES=[];
+function addSite(){const v=document.getElementById('msiteNew').value.trim(); if(v && !SITES.includes(v)){SITES.push(v);const sel=document.getElementById('msite');sel.innerHTML='<option value="">— pas de site web —</option>'+SITES.map(s=>`<option>${esc(s)}</option>`).join('');sel.value=v;}document.getElementById('msiteNew').value='';}
 async function api(p,opt){const r=await fetch('/api/'+p,opt);if(r.status===401){showLogin();throw 'auth'}return r.json()}
 function showLogin(){document.getElementById('app').style.display='none';document.getElementById('login').style.display='flex'}
 function showApp(){document.getElementById('login').style.display='none';document.getElementById('app').style.display='block'}
@@ -81,8 +85,9 @@ async function doLogin(){
 document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 async function load(){
   const [gs,its,sts]=await Promise.all([api('groups'),api('items'),api('sites').catch(()=>[])]);
-  const dl=document.getElementById('sites-list');
-  if(dl) dl.innerHTML=sts.map(s=>`<option value="${esc(s.site)}">`).join('');
+  SITES = sts.map(s=>s.site);
+  const sel=document.getElementById('msite');
+  if(sel){const cur=sel.value; sel.innerHTML='<option value="">— pas de site web —</option>'+SITES.map(s=>`<option${s===cur?' selected':''}>${esc(s)}</option>`).join('');}
   GROUPS=gs;
   const tabs=document.getElementById('tabs');
   tabs.innerHTML=`<button class="${CURGRP==='ALL'?'on':''}" onclick="setG('ALL')">🌐 Tout</button>`+
@@ -111,11 +116,13 @@ function mvdo(id){api('items/'+id,{method:'PATCH',headers:{'Content-Type':'appli
 function del(id){if(confirm('Supprimer ?'))api('items/'+id,{method:'DELETE'}).then(load)}
 function openAdd(){editId=null;document.getElementById('mtitle').textContent='Nouvelle tâche';
   document.getElementById('mgroupe').innerHTML=GROUPS.map(g=>`<option value="${g.id}">${g.label}</option>`).join('');
+  // site visible partout
   document.getElementById('mnom').value='';document.getElementById('mdet').value='';document.getElementById('mdue').value='';document.getElementById('msite').value='';
   document.getElementById('modal').classList.add('on')}
 function closeM(){document.getElementById('modal').classList.remove('on')}
 function saveM(){
-  const d={groupe:document.getElementById('mgroupe').value,site:document.getElementById('msite').value.trim(),title:document.getElementById('mnom').value,
+  const siteVal=document.getElementById('msite').value || document.getElementById('msiteNew').value.trim();
+  const d={groupe:document.getElementById('mgroupe').value,site:siteVal,title:document.getElementById('mnom').value,
     detail:document.getElementById('mdet').value,prio:+document.getElementById('mprio').value,due:document.getElementById('mdue').value};
   if(!d.title)return;
   api('items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}).then(()=>{closeM();load()})
