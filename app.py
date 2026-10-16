@@ -9,6 +9,8 @@ PASSWORD_HASH = os.environ.get('BOARD_PASSWORD_HASH')  # sha256 hex
 
 app = Flask(__name__, static_folder='static')
 app.secret_key = SECRET
+from datetime import timedelta
+app.permanent_session_lifetime = timedelta(days=30)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
@@ -43,6 +45,7 @@ def login():
     p = request.json.get('password','')
     if PASSWORD_HASH and hmac.compare_digest(hashlib.sha256(p.encode()).hexdigest(), PASSWORD_HASH):
         session['ok'] = True
+        session.permanent = True  # cookie 30 jours, plus de re-login à chaque visite
         return jsonify(ok=True)
     return jsonify(ok=False), 401
 
