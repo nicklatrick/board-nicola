@@ -16,6 +16,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   groupe TEXT NOT NULL,          -- apps | web | projets | vie-pro | vie-perso
+  site TEXT DEFAULT '',          -- site web rattaché (ex: angelsfinance.net)
   title TEXT NOT NULL,
   detail TEXT DEFAULT '',
   status TEXT DEFAULT 'todo',    -- todo | doing | done
@@ -33,6 +34,15 @@ def db():
     return c
 
 DEFAULT_GROUPS = [('apps','Apps',1),('web','Sites Web',2),('projets','Projets',3),('vie-pro','Vie Pro',4),('vie-perso','Vie Perso',5)]
+
+def migrate():
+    # migration ad-hoc: ajouter la colonne site si absente
+    c = db()
+    cols = [r[1] for r in c.execute('PRAGMA table_info(items)')]
+    if 'site' not in cols:
+        c.execute('ALTER TABLE items ADD COLUMN site TEXT DEFAULT \'\'')
+        c.commit()
+    c.close()
 
 def init_groups():
     c = db()
@@ -60,8 +70,8 @@ def add():
     if not session.get('ok'): return jsonify(err='login'), 401
     d = request.json
     c = db(); now = time.time()
-    cur = c.execute('INSERT INTO items (groupe,title,detail,status,prio,due,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)',
-        (d.get('groupe','projets'), d.get('title',''), d.get('detail',''), d.get('status','todo'), d.get('prio',2), d.get('due',''), now, now))
+    cur = c.execute('INSERT INTO items (groupe,site,title,detail,status,prio,due,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+        (d.get('groupe','projets'), d.get('site',''), d.get('title',''), d.get('detail',''), d.get('status','todo'), d.get('prio',2), d.get('due',''), now, now))
     c.commit(); nid = cur.lastrowid; c.close()
     return jsonify(id=nid)
 
@@ -69,7 +79,7 @@ def add():
 def patch(iid):
     if not session.get('ok'): return jsonify(err='login'), 401
     d = request.json
-    fields = {k: d[k] for k in ('title','detail','status','prio','due','groupe') if k in d}
+    fields = {k: d[k] for k in ('title','detail','status','prio','due','groupe','site') if k in d}
     fields['updated_at'] = time.time()
     if 'status' in d: fields['done_at'] = time.time() if d['status']=='done' else None
     c = db()
@@ -84,6 +94,13 @@ def dele(iid):
     c = db(); c.execute('DELETE FROM items WHERE id=?',(iid,)); c.commit(); c.close()
     return jsonify(ok=True)
 
+@app.route('/api/sites')
+def sites():
+    if not session.get('ok'): return jsonify(err='login'), 401
+    c = db()
+    rows = [dict(r) for r in c.execute('SELECT site, COUNT(*) as n FROM items WHERE site != \'\' GROUP BY site ORDER BY n DESC')]
+    c.close(); return jsonify(rows)
+
 @app.route('/api/groups')
 def groups():
     if not session.get('ok'): return jsonify(err='login'), 401
@@ -94,6 +111,8 @@ def groups():
 def index():
     return send_from_directory('static','index.html')
 
+migrate()
+migrate()
 init_groups()
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8001)
